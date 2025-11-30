@@ -1,0 +1,150 @@
+*mdpreview.txt*  Live Markdown Preview in Browser
+
+                    VIM MARKDOWN PREVIEW
+                    
+Author:  Data Inquiry
+License: MIT
+Version: 1.0.0
+
+==============================================================================
+CONTENTS                                            *mdpreview-contents*
+
+    1. Introduction .................... |mdpreview-intro|
+    2. Installation .................... |mdpreview-installation|
+    3. Usage ........................... |mdpreview-usage|
+    4. Commands ........................ |mdpreview-commands|
+    5. Configuration ................... |mdpreview-config|
+    6. Troubleshooting ................. |mdpreview-troubleshooting|
+
+==============================================================================
+1. INTRODUCTION                                     *mdpreview-intro*
+
+Vim Markdown Preview provides live preview of markdown documents in your
+browser with automatic refresh via WebSocket.
+
+Features:
+  - Live preview in browser
+  - Auto-refresh on save or while typing
+  - GitHub-flavored markdown
+  - Tables, code blocks, task lists
+  - Smooth animations
+
+==============================================================================
+2. INSTALLATION                                     *mdpreview-installation*
+
+Requirements:
+  - Vim 8+ or Neovim
+  - Python 3.6+
+  - curl command
+
+Python Dependencies:
+>
+    pip3 install markdown websockets
+<
+
+Using vim-plug:
+>
+    Plug 'datainquiry/vim-preview'
+<
+
+Manual Installation:
+>
+    cp -r plugin autoload server ~/.vim/
+<
+
+==============================================================================
+3. USAGE                                            *mdpreview-usage*
+
+Basic workflow:
+  1. Open a markdown file
+  2. Run :MdPreview
+  3. Browser opens with live preview
+  4. Edit and save to see changes
+
+==============================================================================
+4. COMMANDS                                         *mdpreview-commands*
+
+:MdPreview                                          *:MdPreview*
+    Start preview server and open browser with live preview.
+    If server is already running, refreshes the current content.
+
+:MdPreviewStop                                      *:MdPreviewStop*
+    Stop preview server and close connection.
+
+:MdPreviewRefresh                                   *:MdPreviewRefresh*
+    Manually refresh preview with current buffer content.
+
+:MdPreviewToggle                                    *:MdPreviewToggle*
+    Toggle preview on/off.
+
+==============================================================================
+5. CONFIGURATION                                    *mdpreview-config*
+
+                                                    *g:mdpreview_port*
+g:mdpreview_port
+    Server port number.
+    Default: 8765
+>
+    let g:mdpreview_port = 8765
+<
+
+                                                    *g:mdpreview_auto_start*
+g:mdpreview_auto_start
+    Automatically start preview when opening markdown files.
+    Default: 0
+>
+    let g:mdpreview_auto_start = 0
+<
+
+                                                    *g:mdpreview_refresh_on_save*
+g:mdpreview_refresh_on_save
+    Refresh preview when saving file.
+    Default: 1
+>
+    let g:mdpreview_refresh_on_save = 1
+<
+
+                                                    *g:mdpreview_refresh_on_change*
+g:mdpreview_refresh_on_change
+    Refresh preview while typing (debounced).
+    Default: 0
+>
+    let g:mdpreview_refresh_on_change = 0
+<
+
+                                                    *g:mdpreview_debounce_delay*
+g:mdpreview_debounce_delay
+    Delay in milliseconds for debounced updates.
+    Default: 500
+>
+    let g:mdpreview_debounce_delay = 500
+<
+
+                                                    *g:mdpreview_browser*
+g:mdpreview_browser
+    Custom browser command. Empty string uses system default.
+    Default: ''
+>
+    let g:mdpreview_browser = 'firefox'
+    let g:mdpreview_browser = 'google-chrome'
+<
+
+==============================================================================
+6. TROUBLESHOOTING                                  *mdpreview-troubleshooting*
+
+Server won't start~
+    - Check Python 3 is installed
+    - Install dependencies: pip3 install markdown websockets
+    - Check port is not in use
+
+Browser doesn't open~
+    - Set custom browser: let g:mdpreview_browser = 'firefox'
+    - Manually open: http://localhost:8765
+
+Preview not updating~
+    - Check curl is installed
+    - Run :MdPreviewRefresh manually
+    - Check Vim messages: :messages
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

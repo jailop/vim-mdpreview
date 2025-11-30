@@ -1,0 +1,19 @@
+# Python dependencies for vim-md-preview plugin
+
+# Core dependencies (required)
+websockets>=10.0
+markdown>=3.4
+
+# Note: This plugin uses the standard Python markdown library with
+# extensions for tables, code highlighting, and more. All features
+# including wiki-links and LaTeX are processed through custom
+# processors built into the plugin.
+#
+# No additional packages are required - the plugin works perfectly
+# with just markdown and websockets.
+
+# Installation:
+# pip3 install -r requirements.txt
+#
+# Or manually:
+# pip3 install markdown websockets
