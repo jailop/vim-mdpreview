@@ -41,6 +41,7 @@ class PreviewServer:
         self.clients = set()
         self.http_server = None
         self.ws_server = None
+        self.loop = None  # Will be set to the asyncio event loop
         
         # Initialize the enhanced markdown processor
         if HAS_PROCESSOR:
@@ -271,7 +272,9 @@ class PreviewServer:
         let reconnectTimer = null;
         
         function connect() {
-            const wsPort = window.location.port || 8765;
+            // WebSocket runs on HTTP port + 1
+            const httpPort = parseInt(window.location.port) || 8765;
+            const wsPort = httpPort + 1;
             ws = new WebSocket('ws://localhost:' + wsPort + '/ws');
             
             ws.onopen = function() {
@@ -340,10 +343,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                 enable_wikilinks = data.get('enable_wikilinks', True)
                 enable_latex = data.get('enable_latex', True)
                 
-                # Queue update with debouncing (async)
-                asyncio.run(self.server_instance.queue_update(
-                    content, filepath, enable_wikilinks, enable_latex
-                ))
+                # Schedule update in the asyncio loop
+                if self.server_instance.loop:
+                    asyncio.run_coroutine_threadsafe(
+                        self.server_instance.queue_update(
+                            content, filepath, enable_wikilinks, enable_latex
+                        ),
+                        self.server_instance.loop
+                    )
                 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -378,7 +385,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 async def start_websocket_server(server, ws_port):
     """Start WebSocket server"""
-    async with websockets.serve(server.websocket_handler, 'localhost', ws_port):
+    # Set the event loop reference
+    server.loop = asyncio.get_event_loop()
+    
+    async def handler(websocket):
+        await server.websocket_handler(websocket)
+    
+    async with websockets.serve(handler, 'localhost', ws_port):
         await asyncio.Future()  # run forever
 
 def start_http_server(server, port):

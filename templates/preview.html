@@ -273,7 +273,9 @@
     
     <script>
         // WebSocket connection (separate port from HTTP server)
-        const wsPort = 8766;
+        // WebSocket runs on HTTP port + 1
+        const httpPort = parseInt(window.location.port) || 8765;
+        const wsPort = httpPort + 1;
         const wsUrl = 'ws://' + window.location.hostname + ':' + wsPort;
         let ws = null;
         let scrollPercentage = 0;
