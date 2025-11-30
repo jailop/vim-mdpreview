@@ -142,35 +142,105 @@ class MarkdownProcessor:
     
     def _convert_with_markdown(self, text: str) -> str:
         """Convert using Python markdown library (fallback)"""
+        # Preprocess: Protect LaTeX equations from being touched by markdown
+        latex_blocks = []
+        
+        def save_latex_block(match):
+            latex_blocks.append(match.group(0))
+            placeholder = f"\n\nLATEXBLOCK{len(latex_blocks)-1}ENDBLOCK\n\n"
+            return placeholder
+        
+        # Protect display math ($$...$$) - must handle multi-line
+        text = re.sub(r'\$\$(.*?)\$\$', save_latex_block, text, flags=re.DOTALL)
+        
+        # Protect inline math ($...$)
+        def save_inline_latex(match):
+            latex_blocks.append(match.group(0))
+            return f"LATEXINLINE{len(latex_blocks)-1}ENDINLINE"
+        text = re.sub(r'\$([^\$\n]+?)\$', save_inline_latex, text)
+        
+        # Convert markdown
         md = markdown.Markdown(extensions=[
             'markdown.extensions.tables',
             'markdown.extensions.fenced_code',
             'markdown.extensions.codehilite',
-            'markdown.extensions.nl2br',
             'markdown.extensions.sane_lists',
             'markdown.extensions.toc',
         ])
-        return md.convert(text)
+        html = md.convert(text)
+        
+        # Restore LaTeX equations
+        for i, latex_block in enumerate(latex_blocks):
+            html = html.replace(f"<p>LATEXBLOCK{i}ENDBLOCK</p>", latex_block)
+            html = html.replace(f"LATEXBLOCK{i}ENDBLOCK", latex_block)
+            html = html.replace(f"LATEXINLINE{i}ENDINLINE", latex_block)
+        
+        return html
     
     def _convert_simple(self, text: str) -> str:
         """Simple fallback conversion (no library available)"""
-        # Very basic conversion
-        html = text
+        # Protect LaTeX equations first
+        latex_blocks = []
+        def save_latex_block(match):
+            latex_blocks.append(match.group(0))
+            return f"\n\nLATEXBLOCK{len(latex_blocks)-1}ENDBLOCK\n\n"
+        
+        # Protect display math ($$...$$)
+        html = re.sub(r'\$\$(.*?)\$\$', save_latex_block, text, flags=re.DOTALL)
+        
+        # Protect inline math ($...$)
+        def save_inline_latex(match):
+            latex_blocks.append(match.group(0))
+            return f"LATEXINLINE{len(latex_blocks)-1}ENDINLINE"
+        html = re.sub(r'\$([^\$\n]+?)\$', save_inline_latex, html)
         
         # Headers
         html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
         html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
         html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
         
-        # Bold and italic
+        # Bold and italic (before paragraph processing)
         html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
         html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
         
         # Code
         html = re.sub(r'`(.+?)`', r'<code>\1</code>', html)
         
-        # Paragraphs
-        html = '<p>' + html.replace('\n\n', '</p><p>') + '</p>'
-        html = html.replace('\n', '<br>')
+        # Paragraphs - split by double newlines or headers/latex blocks
+        lines = html.split('\n')
+        paragraphs = []
+        current_para = []
+        
+        for line in lines:
+            line_stripped = line.strip()
+            # Check if line is a header, empty, or LaTeX block
+            if (line_stripped == '' or 
+                line_stripped.startswith('<h') or 
+                'LATEXBLOCK' in line_stripped):
+                # Save current paragraph
+                if current_para:
+                    para_text = ' '.join(current_para)
+                    if not para_text.startswith('<h'):
+                        para_text = f'<p>{para_text}</p>'
+                    paragraphs.append(para_text)
+                    current_para = []
+                # Add special line
+                if line_stripped.startswith('<h') or 'LATEXBLOCK' in line_stripped:
+                    paragraphs.append(line_stripped)
+            else:
+                current_para.append(line_stripped)
+        
+        # Save last paragraph
+        if current_para:
+            para_text = ' '.join(current_para)
+            paragraphs.append(f'<p>{para_text}</p>')
+        
+        html = '\n'.join(paragraphs)
+        
+        # Restore LaTeX equations
+        for i, latex_block in enumerate(latex_blocks):
+            html = html.replace(f"<p>LATEXBLOCK{i}ENDBLOCK</p>", latex_block)
+            html = html.replace(f"LATEXBLOCK{i}ENDBLOCK", latex_block)
+            html = html.replace(f"LATEXINLINE{i}ENDINLINE", latex_block)
         
         return html

@@ -1,7 +1,7 @@
 " autoload/mdpreview.vim - Core functionality
 
 let s:server_running = 0
-let s:server_job = -1
+let s:server_job = v:null
 let s:update_timer = -1
 let s:plugin_dir = expand('<sfile>:p:h:h')
 let s:current_file = ''
@@ -56,11 +56,14 @@ function! mdpreview#start() abort
           \ })
   endif
   
-  if s:server_job <= 0
-    echohl ErrorMsg
-    echo "MdPreview: Failed to start preview server"
-    echohl None
-    return
+  " Check if job start failed (in nvim, jobstart returns -1 on error)
+  if has('nvim')
+    if s:server_job <= 0
+      echohl ErrorMsg
+      echo "MdPreview: Failed to start preview server"
+      echohl None
+      return
+    endif
   endif
   
   let s:server_running = 1
@@ -84,7 +87,7 @@ function! mdpreview#stop() abort
   endif
   
   let s:server_running = 0
-  let s:server_job = -1
+  let s:server_job = v:null
   echo "MdPreview: Server stopped"
 endfunction
 
@@ -97,15 +100,33 @@ function! mdpreview#toggle() abort
 endfunction
 
 function! mdpreview#update() abort
-  if !s:server_running
+  " Log function call
+  let l:logfile = expand('~/.vim/mdpreview_vim.log')
+  
+  " Check actual job status, not the flag
+  let l:job_alive = s:is_job_alive()
+  call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - mdpreview#update() called, server_running=' . s:server_running . ', job_alive=' . string(l:job_alive)], l:logfile, 'a')
+  
+  if !l:job_alive
+    call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - Job not alive, returning'], l:logfile, 'a')
     return
+  endif
+  
+  " Update the flag if job is alive but flag says otherwise
+  if !s:server_running && l:job_alive
+    let s:server_running = 1
   endif
   
   let l:content = join(getline(1, '$'), "\n")
   let l:filepath = expand('%:p')
   
+  " Get cursor position and calculate scroll percentage
+  let l:cursor_line = line('.')
+  let l:total_lines = line('$')
+  let l:scroll_percent = (l:cursor_line * 100.0) / l:total_lines
+  
   " Send content to server
-  call s:send_update(l:content, l:filepath)
+  call s:send_update(l:content, l:filepath, l:scroll_percent)
 endfunction
 
 function! mdpreview#refresh() abort
@@ -113,7 +134,8 @@ function! mdpreview#refresh() abort
 endfunction
 
 function! mdpreview#debounced_update() abort
-  if !s:server_running
+  " Check actual job status
+  if !s:is_job_alive()
     return
   endif
   
@@ -136,12 +158,84 @@ function! mdpreview#cleanup() abort
   call mdpreview#stop()
 endfunction
 
+function! mdpreview#debug_status() abort
+  " Check actual job status first
+  let l:job_alive = s:is_job_alive()
+  
+  echo "Server running flag: " . s:server_running
+  echo "Job actually alive: " . string(l:job_alive)
+  
+  if s:server_job isnot v:null
+    if has('nvim')
+      try
+        let l:pid = jobpid(s:server_job)
+        echo "Server job: process " . l:pid . " (nvim)"
+      catch
+        echo "Server job: invalid"
+      endtry
+    else
+      try
+        let l:job_status = job_status(s:server_job)
+        echo "Server job: " . l:job_status . " (vim)"
+      catch
+        echo "Server job: invalid"
+      endtry
+    endif
+  else
+    echo "Server job: not started"
+  endif
+  
+  echo "Update timer: " . s:update_timer
+  echo "Current file: " . s:current_file
+  echo "Port: " . g:mdpreview_port
+  echo "WS Port: " . g:mdpreview_ws_port
+  
+  " Show log files
+  echo "Vim log: ~/.vim/mdpreview_vim.log"
+  echo "Server log: ~/.vim/mdpreview_server.log"
+  
+  " Try to send an update now
+  if l:job_alive
+    echo "Forcing update..."
+    call mdpreview#update()
+  else
+    echo "Server not running!"
+  endif
+  
+  " Show last few lines from logs
+  echo "\n=== Last 5 lines from vim log ==="
+  let l:vim_log = expand('~/.vim/mdpreview_vim.log')
+  if filereadable(l:vim_log)
+    let l:lines = readfile(l:vim_log)
+    for line in l:lines[-5:]
+      echo line
+    endfor
+  else
+    echo "Log file not found"
+  endif
+  
+  echo "\n=== Last 10 lines from server log ==="
+  let l:server_log = expand('~/.vim/mdpreview_server.log')
+  if filereadable(l:server_log)
+    let l:lines = readfile(l:server_log)
+    for line in l:lines[-10:]
+      echo line
+    endfor
+  else
+    echo "Log file not found"
+  endif
+endfunction
+
 " Private functions
 function! s:open_browser_and_update(timer) abort
   let l:url = 'http://localhost:' . g:mdpreview_port
   
   " Open browser
   call s:open_browser(l:url)
+  
+  " Log browser opening
+  let l:logfile = expand('~/.vim/mdpreview_vim.log')
+  call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - Opening browser: ' . l:url], l:logfile, 'a')
   
   " Send initial content
   call timer_start(500, function('s:do_update'))
@@ -151,15 +245,20 @@ function! s:do_update(timer) abort
   call mdpreview#update()
 endfunction
 
-function! s:send_update(content, filepath) abort
+function! s:send_update(content, filepath, scroll_percent) abort
   let l:url = 'http://localhost:' . g:mdpreview_port . '/update'
   
-  " Prepare JSON data with wiki-links and LaTeX options
+  " Log to file
+  let l:logfile = expand('~/.vim/mdpreview_vim.log')
+  call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - Sending update: ' . len(a:content) . ' bytes, filepath=' . a:filepath . ', scroll=' . a:scroll_percent . '%'], l:logfile, 'a')
+  
+  " Prepare JSON data with wiki-links, LaTeX options, and scroll position
   let l:data = {
         \ 'content': a:content,
         \ 'filepath': a:filepath,
         \ 'enable_wikilinks': g:mdpreview_enable_wikilinks,
-        \ 'enable_latex': g:mdpreview_enable_latex
+        \ 'enable_latex': g:mdpreview_enable_latex,
+        \ 'scroll_percent': a:scroll_percent
         \ }
   let l:json = json_encode(l:data)
   
@@ -170,8 +269,9 @@ function! s:send_update(content, filepath) abort
   " Send via curl
   if executable('curl')
     let l:cmd = 'curl -s -X POST -H "Content-Type: application/json" -d @' 
-          \ . shellescape(l:tmpfile) . ' ' . l:url . ' >/dev/null 2>&1'
-    call system(l:cmd)
+          \ . shellescape(l:tmpfile) . ' ' . l:url . ' 2>&1'
+    let l:output = system(l:cmd)
+    call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - curl output: ' . l:output], l:logfile, 'a')
     call delete(l:tmpfile)
   else
     echohl WarningMsg
@@ -217,26 +317,54 @@ function! s:on_server_output(job_id, data, ...) abort
 endfunction
 
 function! s:on_server_error(job_id, data, ...) abort
+  " Log stderr to file instead of showing as errors
+  let l:logfile = expand('~/.vim/mdpreview_server.log')
   if type(a:data) == v:t_list
     for line in a:data
       if !empty(line)
-        echohl ErrorMsg
-        echo "MdPreview error: " . line
-        echohl None
+        call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - ' . line], l:logfile, 'a')
       endif
     endfor
   elseif type(a:data) == v:t_string && !empty(a:data)
-    echohl ErrorMsg
-    echo "MdPreview error: " . a:data
-    echohl None
+    call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - ' . a:data], l:logfile, 'a')
+  endif
+endfunction
+
+function! s:is_job_alive() abort
+  if s:server_job is v:null
+    return 0
+  endif
+  
+  if has('nvim')
+    try
+      let l:pid = jobpid(s:server_job)
+      return l:pid > 0
+    catch
+      return 0
+    endtry
+  else
+    try
+      let l:job_status = job_status(s:server_job)
+      return l:job_status == 'run'
+    catch
+      return 0
+    endtry
   endif
 endfunction
 
 function! s:on_server_exit(job_id, status, ...) abort
-  let s:server_running = 0
-  if a:status != 0
-    echohl WarningMsg
-    echo "MdPreview: Server exited with status " . a:status
-    echohl None
+  " Log the exit event but don't change the flag
+  " The flag will be checked dynamically by s:is_job_alive()
+  let l:logfile = expand('~/.vim/mdpreview_server.log')
+  call writefile([strftime('%Y-%m-%d %H:%M:%S') . ' - Server exit callback: status=' . a:status], l:logfile, 'a')
+  
+  " Only show error if server actually died
+  if !s:is_job_alive()
+    let s:server_running = 0
+    if a:status != 0
+      echohl WarningMsg
+      echo "MdPreview: Server exited with status " . a:status
+      echohl None
+    endif
   endif
 endfunction

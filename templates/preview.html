@@ -278,7 +278,6 @@
         const wsPort = httpPort + 1;
         const wsUrl = 'ws://' + window.location.hostname + ':' + wsPort;
         let ws = null;
-        let scrollPercentage = 0;
         let reconnectTimeout = null;
         
         function connect() {
@@ -295,12 +294,21 @@
             };
             
             ws.onmessage = function(event) {
-                // Save scroll position
-                const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-                scrollPercentage = scrollHeight > 0 ? window.scrollY / scrollHeight : 0;
+                // Parse the message (could be JSON or plain HTML for backward compatibility)
+                let htmlContent;
+                let scrollPercent = null;
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    htmlContent = data.html;
+                    scrollPercent = data.scroll_percent;
+                } catch (e) {
+                    // Fallback: treat as plain HTML
+                    htmlContent = event.data;
+                }
                 
                 // Update content
-                document.getElementById('content').innerHTML = event.data;
+                document.getElementById('content').innerHTML = htmlContent;
                 
                 // Re-render LaTeX if KaTeX is available
                 if (typeof renderMathInElement !== 'undefined') {
@@ -321,13 +329,19 @@
                     });
                 }
                 
-                // Restore scroll position
-                setTimeout(() => {
-                    const newScrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-                    if (newScrollHeight > 0) {
-                        window.scrollTo(0, newScrollHeight * scrollPercentage);
-                    }
-                }, 50);
+                // Sync scroll position if provided
+                if (scrollPercent !== null && scrollPercent !== undefined) {
+                    setTimeout(() => {
+                        const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+                        if (scrollHeight > 0) {
+                            const targetScroll = (scrollPercent / 100.0) * scrollHeight;
+                            window.scrollTo({
+                                top: targetScroll,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }, 50);
+                }
             };
             
             ws.onerror = function(error) {

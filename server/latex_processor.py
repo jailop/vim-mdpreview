@@ -15,23 +15,26 @@ class LaTeXProcessor:
         """
         Process LaTeX formulas in HTML output
         Converts md4c <x-equation> tags to KaTeX format
+        Handles multi-line equations properly
         """
         # md4c outputs:
         # - Block formulas: <x-equation type="display">...</x-equation>
         # - Inline formulas: <x-equation>...</x-equation>
         
-        # Convert block formulas to $$...$$
+        # Convert block formulas to $$...$$ (allow multiline with DOTALL)
         html = re.sub(
-            r'<x-equation type="display">([^<]*)</x-equation>',
+            r'<x-equation type="display">(.*?)</x-equation>',
             r'$$\1$$',
-            html
+            html,
+            flags=re.DOTALL
         )
         
         # Convert inline formulas to $...$
         html = re.sub(
-            r'<x-equation>([^<]*)</x-equation>',
+            r'<x-equation>(.*?)</x-equation>',
             r'$\1$',
-            html
+            html,
+            flags=re.DOTALL
         )
         
         return html

@@ -23,6 +23,7 @@ command! MdPreview call mdpreview#start()
 command! MdPreviewStop call mdpreview#stop()
 command! MdPreviewRefresh call mdpreview#refresh()
 command! MdPreviewToggle call mdpreview#toggle()
+command! MdPreviewDebug call mdpreview#debug_status()
 
 " Auto-commands for markdown files
 augroup mdpreview

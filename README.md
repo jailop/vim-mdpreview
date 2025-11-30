@@ -27,8 +27,9 @@ Live markdown preview in your browser with automatic refresh, wiki-links, LaTeX 
 - ✅ **Cached File Inclusions**: Modification time-based caching (80% faster for repeated includes)
 - ✅ **Performance Monitoring**: `/stats` endpoint for monitoring cache performance
 - ✅ **Memory Management**: Bounded caches with automatic eviction
+- ✅ **Position Sync**: Preview scrolls automatically to match cursor position in Vim
 
-See [PERFORMANCE.md](PERFORMANCE.md) for detailed documentation.
+See [PERFORMANCE.md](PERFORMANCE.md) and [POSITION_SYNC.md](POSITION_SYNC.md) for detailed documentation.
 
 ## Installation
 
@@ -91,6 +92,16 @@ cp -r plugin autoload server templates ~/.config/nvim/
 2. Run `:MdPreview`
 3. Browser opens automatically with live preview
 4. Edit and save - preview updates automatically
+5. Move your cursor - preview scrolls to match your position
+
+### Position Sync
+
+The preview automatically scrolls to match your cursor position in Vim:
+- Move to different sections and watch the preview follow
+- No manual scrolling needed to find what you're editing
+- Smooth scrolling for a natural experience
+
+See [POSITION_SYNC.md](POSITION_SYNC.md) for technical details.
 
 ## Configuration
 
