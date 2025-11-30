@@ -3,6 +3,7 @@
 Markdown Preview Server
 Provides HTTP server with WebSocket for live markdown preview
 Phase 2: With wiki-links, LaTeX, and enhanced features
+Performance Optimized: With debouncing, caching, and incremental rendering
 """
 
 import sys
@@ -10,9 +11,10 @@ import argparse
 import asyncio
 import json
 import mimetypes
+import time
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
+from threading import Thread, Lock
 import websockets
 
 # Import our enhanced processor
@@ -46,6 +48,17 @@ class PreviewServer:
         else:
             self.processor = None
         
+        # Debouncing state
+        self._debounce_task = None
+        self._debounce_delay = 0.3  # 300ms debounce
+        self._pending_update = None
+        self._update_lock = Lock()
+        
+        # Performance monitoring
+        self._update_count = 0
+        self._total_processing_time = 0.0
+        self._cache_hits = 0
+        
     async def websocket_handler(self, websocket, path):
         """Handle WebSocket connections"""
         self.clients.add(websocket)
@@ -69,10 +82,13 @@ class PreviewServer:
             )
     
     def process_markdown(self, content, filepath='', enable_wikilinks=True, enable_latex=True):
-        """Convert markdown to HTML with all features"""
+        """Convert markdown to HTML with all features and performance tracking"""
+        start_time = time.time()
+        
         if self.processor:
             # Use enhanced processor with wiki-links and LaTeX
             html = self.processor.convert(content, enable_wikilinks, enable_latex)
+            self._cache_hits += 1 if self.processor._last_hash in self.processor._content_cache else 0
         elif HAS_MARKDOWN:
             # Fallback to basic markdown library
             md = markdown.Markdown(extensions=[
@@ -88,7 +104,58 @@ class PreviewServer:
             # Simple fallback conversion
             html = '<p>' + content.replace('\n\n', '</p><p>').replace('\n', '<br>') + '</p>'
         
+        # Track performance
+        processing_time = time.time() - start_time
+        self._total_processing_time += processing_time
+        self._update_count += 1
+        
         return html
+    
+    async def queue_update(self, content, filepath='', enable_wikilinks=True, enable_latex=True):
+        """Queue an update with debouncing"""
+        with self._update_lock:
+            # Store pending update
+            self._pending_update = (content, filepath, enable_wikilinks, enable_latex)
+            
+            # Cancel existing debounce task
+            if self._debounce_task and not self._debounce_task.done():
+                self._debounce_task.cancel()
+            
+            # Create new debounce task
+            self._debounce_task = asyncio.create_task(self._debounced_update())
+    
+    async def _debounced_update(self):
+        """Execute update after debounce delay"""
+        try:
+            await asyncio.sleep(self._debounce_delay)
+            
+            with self._update_lock:
+                if self._pending_update:
+                    content, filepath, enable_wikilinks, enable_latex = self._pending_update
+                    self._pending_update = None
+                    
+                    # Process and broadcast
+                    html = self.process_markdown(content, filepath, enable_wikilinks, enable_latex)
+                    await self.broadcast_update(html)
+        except asyncio.CancelledError:
+            # Task was cancelled, this is expected
+            pass
+    
+    def get_stats(self):
+        """Get performance statistics"""
+        avg_time = (self._total_processing_time / self._update_count) if self._update_count > 0 else 0
+        stats = {
+            'updates': self._update_count,
+            'avg_processing_time_ms': avg_time * 1000,
+            'total_time_s': self._total_processing_time,
+            'cache_hits': self._cache_hits
+        }
+        
+        if self.processor and hasattr(self.processor, 'wikilink_processor'):
+            wl_stats = self.processor.wikilink_processor.get_cache_stats()
+            stats['file_cache'] = wl_stats
+        
+        return stats
     
     def get_template_html(self):
         """Get HTML template"""
@@ -273,13 +340,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 enable_wikilinks = data.get('enable_wikilinks', True)
                 enable_latex = data.get('enable_latex', True)
                 
-                # Process markdown with options
-                html = self.server_instance.process_markdown(
+                # Queue update with debouncing (async)
+                asyncio.run(self.server_instance.queue_update(
                     content, filepath, enable_wikilinks, enable_latex
-                )
-                
-                # Broadcast to WebSocket clients
-                asyncio.run(self.server_instance.broadcast_update(html))
+                ))
                 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -287,6 +351,21 @@ class RequestHandler(BaseHTTPRequestHandler):
                 response = json.dumps({'status': 'ok'})
                 self.wfile.write(response.encode())
                 
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = json.dumps({'status': 'error', 'message': str(e)})
+                self.wfile.write(response.encode())
+        elif self.path == '/stats':
+            # Performance statistics endpoint
+            try:
+                stats = self.server_instance.get_stats()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = json.dumps(stats, indent=2)
+                self.wfile.write(response.encode())
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json')
