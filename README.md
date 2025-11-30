@@ -2,35 +2,6 @@
 
 Live markdown preview in your browser with automatic refresh, wiki-links, LaTeX formulas, and syntax highlighting.
 
-## Features
-
-### Phase 1 - Basic Features ✅
-- ✅ Basic markdown rendering (tables, lists, code blocks, etc.)
-- ✅ Live preview in browser
-- ✅ WebSocket auto-refresh
-- ✅ Manual and auto-update on save
-- ✅ HTTP server with Python backend
-- ✅ GitHub-style rendering
-
-### Phase 2 - Extended Features ✅
-- ✅ **Wiki-Links**: `[[note]]` and `[[note|display text]]`
-- ✅ **File Inclusion**: `[[!file]]` and `[[!file|title]]`
-- ✅ **LaTeX Formulas**: Inline `$E=mc^2$` and display `$$...$$`
-- ✅ **Syntax Highlighting**: Code blocks with highlight.js
-- ✅ KaTeX integration for beautiful math rendering
-- ✅ Circular inclusion detection
-- ✅ Error handling and graceful fallbacks
-
-### Phase 3 - Performance Optimizations ✅
-- ✅ **Debounced Updates**: Client and server-side debouncing (300ms default)
-- ✅ **Incremental Rendering**: Content hash-based caching (2400x faster for cached content)
-- ✅ **Cached File Inclusions**: Modification time-based caching (80% faster for repeated includes)
-- ✅ **Performance Monitoring**: `/stats` endpoint for monitoring cache performance
-- ✅ **Memory Management**: Bounded caches with automatic eviction
-- ✅ **Position Sync**: Preview scrolls automatically to match cursor position in Vim
-
-See [PERFORMANCE.md](PERFORMANCE.md) and [POSITION_SYNC.md](POSITION_SYNC.md) for detailed documentation.
-
 ## Installation
 
 ### Requirements
@@ -50,8 +21,6 @@ Or manually:
 ```bash
 pip3 install markdown websockets
 ```
-
-**Note**: The plugin uses the standard `markdown` library which is widely available and supports most features including tables, code blocks, and more. PyMD4C was listed as an optional dependency for advanced features like wiki-links, but it's not required - the plugin works perfectly with the standard markdown library.
 
 ### Install Plugin
 
@@ -149,10 +118,6 @@ let g:mdpreview_enable_latex = 1
 - **For large documents**: Increase `g:mdpreview_debounce_delay` to 500ms or higher
 - **For rapid feedback**: Decrease to 150ms (may increase CPU usage)
 
-The plugin uses intelligent caching to make repeated renders nearly instant. See [PERFORMANCE.md](PERFORMANCE.md) for details.
-
-## Feature Examples
-
 ### Wiki-Links
 
 ```markdown
@@ -185,85 +150,4 @@ $$
 def hello():
     print("Hello, world!")
 ```
-````
 
-## How It Works
-
-1. **Vim Plugin**: Monitors buffer changes and sends markdown content
-2. **Python Server**: Converts markdown to HTML using `markdown` library
-3. **WebSocket**: Pushes updates to browser in real-time
-4. **Browser**: Auto-refreshes with smooth animations
-
-## Architecture
-
-```
-┌─────────────┐
-│     Vim     │
-│   Buffer    │
-└──────┬──────┘
-       │ HTTP POST
-       ▼
-┌─────────────────┐      WebSocket     ┌──────────────┐
-│  Python Server  │◄──────────────────►│   Browser    │
-│  - md → HTML    │                    │   Preview    │
-│  - WebSocket    │                    └──────────────┘
-└─────────────────┘
-```
-
-## Troubleshooting
-
-### Server won't start
-
-- Check Python 3 is installed: `python3 --version`
-- Install dependencies: `pip3 install markdown websockets`
-- Check port is not in use: `lsof -i :8765`
-
-### Browser doesn't open
-
-- Set custom browser: `let g:mdpreview_browser = 'firefox'`
-- Manually open: `http://localhost:8765`
-
-### Preview not updating
-
-- Check `curl` is installed: `which curl`
-- Run `:MdPreviewRefresh` manually
-- Check Vim messages: `:messages`
-
-## Development Status
-
-### Phase 1 ✅ Complete
-
-- [x] Project structure
-- [x] VimScript plugin skeleton
-- [x] Python HTTP server with WebSocket
-- [x] Basic markdown conversion
-- [x] HTML template with auto-refresh
-- [x] Browser auto-open
-- [x] Update on save
-- [x] Manual commands
-
-### Phase 2 ✅ Complete
-
-- [x] Wiki-link support `[[note]]`
-- [x] File inclusion `[[!file]]`
-- [x] LaTeX formulas with KaTeX
-- [x] Syntax highlighting
-- [x] Debounced auto-update
-- [x] Circular inclusion detection
-- [x] Error handling
-
-### Phase 3 (Future)
-
-- [ ] Themes (light/dark/sepia)
-- [ ] Scroll synchronization
-- [ ] Export to HTML/PDF
-- [ ] Advanced wiki-link navigation
-- [ ] Table of contents generation
-
-## License
-
-MIT License
-
-## Contributing
-
-Issues and pull requests welcome!
