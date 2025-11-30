@@ -9,6 +9,7 @@ let g:loaded_mdpreview = 1
 
 " Default configuration
 let g:mdpreview_port = get(g:, 'mdpreview_port', 8765)
+let g:mdpreview_ws_port = get(g:, 'mdpreview_ws_port', 8766)
 let g:mdpreview_auto_start = get(g:, 'mdpreview_auto_start', 0)
 let g:mdpreview_refresh_on_save = get(g:, 'mdpreview_refresh_on_save', 1)
 let g:mdpreview_refresh_on_change = get(g:, 'mdpreview_refresh_on_change', 0)

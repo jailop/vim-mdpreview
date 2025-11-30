@@ -97,8 +97,11 @@ cp -r plugin autoload server templates ~/.config/nvim/
 Add to your `.vimrc` or `init.vim`:
 
 ```vim
-" Server port (default: 8765)
+" HTTP server port (default: 8765)
 let g:mdpreview_port = 8765
+
+" WebSocket server port (default: 8766)
+let g:mdpreview_ws_port = 8766
 
 " Auto-start preview when opening markdown files (default: 0)
 let g:mdpreview_auto_start = 0

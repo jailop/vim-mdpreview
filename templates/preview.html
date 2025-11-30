@@ -272,8 +272,9 @@
     </div>
     
     <script>
-        // WebSocket connection
-        const wsUrl = 'ws://' + window.location.host + '/ws';
+        // WebSocket connection (separate port from HTTP server)
+        const wsPort = 8766;
+        const wsUrl = 'ws://' + window.location.hostname + ':' + wsPort;
         let ws = null;
         let scrollPercentage = 0;
         let reconnectTimeout = null;

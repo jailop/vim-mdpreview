@@ -38,17 +38,18 @@ function! mdpreview#start() abort
   
   let l:base_path = expand('%:p:h')
   let l:port = g:mdpreview_port
+  let l:ws_port = g:mdpreview_ws_port
   let s:current_file = expand('%:p')
   
   " Start server
   if has('nvim')
-    let s:server_job = jobstart(['python3', l:server_script, '--port', l:port, '--base', l:base_path], {
+    let s:server_job = jobstart(['python3', l:server_script, '--port', l:port, '--ws-port', l:ws_port, '--base', l:base_path], {
           \ 'on_stdout': function('s:on_server_output'),
           \ 'on_stderr': function('s:on_server_error'),
           \ 'on_exit': function('s:on_server_exit'),
           \ })
   else
-    let s:server_job = job_start(['python3', l:server_script, '--port', l:port, '--base', l:base_path], {
+    let s:server_job = job_start(['python3', l:server_script, '--port', l:port, '--ws-port', l:ws_port, '--base', l:base_path], {
           \ 'out_cb': function('s:on_server_output'),
           \ 'err_cb': function('s:on_server_error'),
           \ 'exit_cb': function('s:on_server_exit'),

@@ -59,7 +59,7 @@ class PreviewServer:
         self._total_processing_time = 0.0
         self._cache_hits = 0
         
-    async def websocket_handler(self, websocket, path):
+    async def websocket_handler(self, websocket):
         """Handle WebSocket connections"""
         self.clients.add(websocket)
         try:
@@ -376,9 +376,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-async def start_websocket_server(server, port):
+async def start_websocket_server(server, ws_port):
     """Start WebSocket server"""
-    async with websockets.serve(server.websocket_handler, 'localhost', port):
+    async with websockets.serve(server.websocket_handler, 'localhost', ws_port):
         await asyncio.Future()  # run forever
 
 def start_http_server(server, port):
@@ -390,7 +390,8 @@ def start_http_server(server, port):
 
 def main():
     parser = argparse.ArgumentParser(description='Markdown Preview Server')
-    parser.add_argument('--port', type=int, default=8765, help='Server port')
+    parser.add_argument('--port', type=int, default=8765, help='HTTP server port')
+    parser.add_argument('--ws-port', type=int, default=8766, help='WebSocket server port')
     parser.add_argument('--base', type=str, default='.', help='Base directory')
     args = parser.parse_args()
     
@@ -400,9 +401,9 @@ def main():
     http_thread = Thread(target=start_http_server, args=(server, args.port), daemon=True)
     http_thread.start()
     
-    # Start WebSocket server
+    # Start WebSocket server on separate port
     try:
-        asyncio.run(start_websocket_server(server, args.port))
+        asyncio.run(start_websocket_server(server, args.ws_port))
     except KeyboardInterrupt:
         print("\nServer stopped", flush=True)
 
